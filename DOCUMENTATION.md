@@ -66,21 +66,22 @@ You can **copy and paste it directly** into a file named `k8s-deployment.yaml`.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: flask-app
+  name: vulnerable-flask
+  namespace: vulnerable-test
   labels:
-    app: flask
+    app: vulnerable-flask
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: flask
+      app: vulnerable-flask
   template:
     metadata:
       labels:
-        app: flask
+        app: vulnerable-flask
     spec:
       securityContext:
-        runAsUser: 0  # Running as root (vulnerability)
+        runAsUser: 0   # Running as root (vulnerability)
       containers:
         - name: flask-container
           image: flask-app:latest
@@ -88,35 +89,241 @@ spec:
           ports:
             - containerPort: 5000
           securityContext:
-            privileged: true               # Privileged container (vulnerability)
+            privileged: true                # Privileged container (vulnerability)
             allowPrivilegeEscalation: true
             readOnlyRootFilesystem: false
             runAsNonRoot: false
           env:
             - name: SECRET_PASSWORD
-              value: "admin123"            # Hardcoded secret (vulnerability)
+              value: "admin123"             # Hardcoded secret (vulnerability)
           volumeMounts:
             - name: host-root
-              mountPath: /host             # Host path mount (vulnerability)
+              mountPath: /host              # Host path mount (vulnerability)
       volumes:
         - name: host-root
           hostPath:
-            path: /                        # Host path mount (vulnerability)
+            path: /                         # Host path mount (vulnerability)
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: flask-service
+  name: vulnerable-flask-service
+  namespace: vulnerable-test
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
-    app: flask
+    app: vulnerable-flask
   ports:
     - protocol: TCP
       port: 80
       targetPort: 5000
+      nodePort: 30081
 
+```
+
+---
+
+## Insecure RBAC File
+
+You can **copy and paste it directly** into a file named `insecure-rbac.yaml`.
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: insecure-service-account
+  namespace: vulnerable-test
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: insecure-binding
+subjects:
+- kind: ServiceAccount
+  name: insecure-service-account
+  namespace: vulnerable-test
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin  # Excessive permissions (vulnerability)
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insecure-deployment
+  namespace: vulnerable-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: insecure-app
+  template:
+    metadata:
+      labels:
+        app: insecure-app
+    spec:
+      serviceAccountName: insecure-service-account
+      containers:
+      - name: insecure-container
+        image: alpine:latest
+        command: ["sleep", "3600"]
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add: ["SYS_ADMIN", "NET_ADMIN"]  # Excessive capabilities
+
+```
+
+---
+
+## KUBE-HUNTER File
+
+You can **copy and paste it directly** into a file named `kube-hunter.yaml`.
+
+```yaml
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kube-hunter
+spec:
+  template:
+    metadata:
+      labels:
+        app: kube-hunter
+    spec:
+      containers:
+        - name: kube-hunter
+          image: aquasec/kube-hunter:0.6.8
+          command: ["kube-hunter"]
+          args: ["--pod"]
+      restartPolicy: Never
+```
+
+---
+
+## KUBE-BENCH File
+
+You can **copy and paste it directly** into a file named `kube-bench.yaml`.
+
+```yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-bench
+spec:
+  hostPID: true
+  containers:
+    - name: kube-bench
+      image: aquasec/kube-bench:latest
+      args: ["--benchmark", "cis-1.23", "--json"]
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: var-lib-etcd
+          mountPath: /var/lib/etcd
+          readOnly: true
+        - name: etc-kubernetes
+          mountPath: /etc/kubernetes
+          readOnly: true
+        - name: etc-systemd
+          mountPath: /etc/systemd
+          readOnly: true
+        - name: usr-bin
+          mountPath: /usr/bin
+          readOnly: true
+        - name: var-lib-kubelet
+          mountPath: /var/lib/kubelet
+          readOnly: true
+  volumes:
+    - name: var-lib-etcd
+      hostPath:
+        path: /var/lib/etcd
+    - name: etc-kubernetes
+      hostPath:
+        path: /etc/kubernetes
+    - name: etc-systemd
+      hostPath:
+        path: /etc/systemd
+    - name: usr-bin
+      hostPath:
+        path: /usr/bin
+    - name: var-lib-kubelet
+      hostPath:
+        path: /var/lib/kubelet
+  restartPolicy: Never
+```
+
+---
+
+
+## Python Script for Generating KubeBench Documentation
+
+You can **copy and paste it directly** into a file named `kubebench-report-generator.py`.
+
+```yaml
+
+import json
+from pathlib import Path
+
+def load_kube_bench_results(json_path):
+    with open(json_path, 'r') as file:
+        return json.load(file)
+
+def generate_report(data, output_path="kube_bench_report.md"):
+    lines = []
+    total_pass, total_fail, total_warn, total_info = 0, 0, 0, 0
+
+    for control in data.get("Controls", []):
+        lines.append(f"# Control: {control['text']} ({control['id']})")
+        lines.append(f"**Node Type:** {control['node_type']}")
+        lines.append("")
+
+        for test in control.get("tests", []):
+            section_header = f"## Section {test['section']}: {test['desc']}"
+            lines.append(section_header)
+            lines.append(f"- **Pass:** {test['pass']}")
+            lines.append(f"- **Fail:** {test['fail']}")
+            lines.append(f"- **Warn:** {test['warn']}")
+            lines.append(f"- **Info:** {test['info']}")
+            lines.append("")
+
+            total_pass += test['pass']
+            total_fail += test['fail']
+            total_warn += test['warn']
+            total_info += test['info']
+
+            for result in test.get("results", []):
+                lines.append(f"### {result['test_number']} - {result['test_desc']}")
+                lines.append(f"- **Status:** {result['status']}")
+                if result.get('reason'):
+                    lines.append(f"- **Reason:** {result['reason'][:500]}{'...' if len(result['reason']) > 500 else ''}")
+                if result.get('remediation'):
+                    lines.append(f"- **Remediation:** {result['remediation'].replace(chr(10), ' ')}")
+                lines.append("")
+
+        lines.append("\n---\n")
+
+    # Summary
+    lines.append("# Summary")
+    lines.append(f"- **Total Passed:** {total_pass}")
+    lines.append(f"- **Total Failed:** {total_fail}")
+    lines.append(f"- **Total Warnings:** {total_warn}")
+    lines.append(f"- **Total Info:** {total_info}")
+    lines.append("")
+
+    with open(output_path, 'w') as file:
+        file.write('\n'.join(lines))
+
+    print(f" Report saved to {output_path}")
+
+if __name__ == "__main__":
+    json_input = "kube-bench-results.json"  # Adjust path if needed
+    output_file = "kube_bench_report.md"
+    data = load_kube_bench_results(json_input)
+    generate_report(data, output_file)
 ```
 
 ---
@@ -325,41 +532,6 @@ Retrieve the Minikube cluster IP and store it for later use:
 ```bash
 minikube ip
 ```
-
-## Install & Run kube-hunter Using Docker
-
-### Log in to DockerHub
-
-> **Note:** If you encounter an error while running the kube-hunter container, make sure you are logged in to DockerHub first.  
-> Create a **Personal Access Token (PAT)** from DockerHub and use it as the password during login.
-
-```bash
-docker login -u dataguru97
-````
-* Use your username here...
-When prompted:
-
-* **Username:** `dataguru97`
-* **Password:** Paste your **DockerHub Personal Access Token (PAT)**
-
-After successful authentication, DockerHub access will be enabled inside your VM.
-
-
-### Generate Output on terminal
-
-```bash
-docker run -it --network minikube --rm aquasec/kube-hunter --remote 192.168.49.2 --report plain
-```
-
-- Make sure to use your minikube ip here....
-
-### Send output to a JSON File
-
-```bash
-docker run -it --network minikube --rm aquasec/kube-hunter --remote 192.168.49.2 --report json > kube-hunter-report.json
-```
-
-- Make sure to use your minikube ip here....
 
 ##  Build and Deploy Your App on VM
 
