@@ -297,3 +297,117 @@ If Jenkins does not load, create a firewall rule:
 * **Allowed protocols and ports:** All
 
 ---
+
+## Enable Useful Minikube Addons
+
+Enable the following Minikube addons to enhance cluster functionality:
+
+```bash
+minikube addons enable dashboard
+minikube addons enable metrics-server
+minikube addons enable ingress
+```
+
+
+## Install Required Dependencies
+
+Update the system and install essential packages:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget apt-transport-https ca-certificates gnupg lsb-release python3-pip git
+```
+
+## Get Minikube IP
+
+Retrieve the Minikube cluster IP and store it for later use:
+
+```bash
+minikube ip
+```
+
+## Install & Run kube-hunter Using Docker
+
+### Log in to DockerHub
+
+> **Note:** If you encounter an error while running the kube-hunter container, make sure you are logged in to DockerHub first.  
+> Create a **Personal Access Token (PAT)** from DockerHub and use it as the password during login.
+
+```bash
+docker login -u dataguru97
+````
+* Use your username here...
+When prompted:
+
+* **Username:** `dataguru97`
+* **Password:** Paste your **DockerHub Personal Access Token (PAT)**
+
+After successful authentication, DockerHub access will be enabled inside your VM.
+
+
+### Generate Output on terminal
+
+```bash
+docker run -it --network minikube --rm aquasec/kube-hunter --remote 192.168.49.2 --report plain
+```
+
+- Make sure to use your minikube ip here....
+
+### Send output to a JSON File
+
+```bash
+docker run -it --network minikube --rm aquasec/kube-hunter --remote 192.168.49.2 --report json > kube-hunter-report.json
+```
+
+- Make sure to use your minikube ip here....
+
+##  Build and Deploy Your App on VM
+
+### Point Docker to Minikube
+```bash
+eval $(minikube docker-env)
+````
+
+
+### Build Docker Image
+
+```bash
+docker build -t flask-app:latest .
+```
+
+
+### Deploy Application to Kubernetes
+
+```bash
+kubectl apply -f k8s-deployment.yaml
+```
+
+
+### Check Pod Status
+
+```bash
+kubectl get pods
+```
+
+> You will see the pods running.
+
+
+### Expose the App (Port Forwarding)
+
+```bash
+kubectl port-forward svc/flask-service 5000:80 --address 0.0.0.0
+```
+
+- Make sure to give correct service name.
+
+
+### ✅ Access the Application
+
+* Copy the **External IP**
+* Open browser and visit:
+- http://EXTERNAL-IP:5000
+
+🎉 Your application is now live..
+---
+
+

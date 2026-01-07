@@ -1,21 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: flask-app
+  name: vulnerable-flask
+  namespace: vulnerable-test
   labels:
-    app: flask
+    app: vulnerable-flask
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: flask
+      app: vulnerable-flask
   template:
     metadata:
       labels:
-        app: flask
+        app: vulnerable-flask
     spec:
       securityContext:
-        runAsUser: 0  # Running as root (vulnerability)
+        runAsUser: 0   # Running as root (vulnerability)
       containers:
         - name: flask-container
           image: flask-app:latest
@@ -23,31 +24,34 @@ spec:
           ports:
             - containerPort: 5000
           securityContext:
-            privileged: true               # Privileged container (vulnerability)
+            privileged: true                # Privileged container (vulnerability)
             allowPrivilegeEscalation: true
             readOnlyRootFilesystem: false
             runAsNonRoot: false
           env:
             - name: SECRET_PASSWORD
-              value: "admin123"            # Hardcoded secret (vulnerability)
+              value: "admin123"             # Hardcoded secret (vulnerability)
           volumeMounts:
             - name: host-root
-              mountPath: /host             # Host path mount (vulnerability)
+              mountPath: /host              # Host path mount (vulnerability)
       volumes:
         - name: host-root
           hostPath:
-            path: /                        # Host path mount (vulnerability)
+            path: /                         # Host path mount (vulnerability)
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: flask-service
+  name: vulnerable-flask-service
+  namespace: vulnerable-test
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
-    app: flask
+    app: vulnerable-flask
   ports:
     - protocol: TCP
       port: 80
       targetPort: 5000
+      nodePort: 30081
+
