@@ -525,20 +525,21 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl wget apt-transport-https ca-certificates gnupg lsb-release python3-pip git
 ```
 
-## Get Minikube IP
-
-Retrieve the Minikube cluster IP and store it for later use:
-
-```bash
-minikube ip
-```
 
 ## Create a new Namespace
 
-Retrieve the Minikube cluster IP and store it for later use:
 
 ```bash
 kubectl create namespace vulnerable-test
+```
+
+## Apply the RBAC YAML
+
+Retrieve the Minikube cluster IP and store it for later use:
+
+```bash
+kubectl apply -f insecure-rbac.yaml
+
 ```
 
 ##  Build and Deploy Your App on VM
