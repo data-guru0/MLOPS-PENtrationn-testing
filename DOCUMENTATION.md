@@ -222,51 +222,38 @@ spec:
       securityContext:
         privileged: true
       volumeMounts:
-        - name: etc
-          mountPath: /etc
+        - name: var-lib-etcd
+          mountPath: /var/lib/etcd
           readOnly: true
-        - name: var-lib
-          mountPath: /var/lib
+        - name: etc-kubernetes
+          mountPath: /etc/kubernetes
+          readOnly: true
+        - name: etc-systemd
+          mountPath: /etc/systemd
           readOnly: true
         - name: usr-bin
           mountPath: /usr/bin
           readOnly: true
-        - name: usr-lib
-          mountPath: /usr/lib
-          readOnly: true
-        - name: lib
-          mountPath: /lib
-          readOnly: true
-        - name: proc
-          mountPath: /proc
-          readOnly: true
-        - name: run-systemd
-          mountPath: /run/systemd
+        - name: var-lib-kubelet
+          mountPath: /var/lib/kubelet
           readOnly: true
   volumes:
-    - name: etc
+    - name: var-lib-etcd
       hostPath:
-        path: /etc
-    - name: var-lib
+        path: /var/lib/etcd
+    - name: etc-kubernetes
       hostPath:
-        path: /var/lib
+        path: /etc/kubernetes
+    - name: etc-systemd
+      hostPath:
+        path: /etc/systemd
     - name: usr-bin
       hostPath:
         path: /usr/bin
-    - name: usr-lib
+    - name: var-lib-kubelet
       hostPath:
-        path: /usr/lib
-    - name: lib
-      hostPath:
-        path: /lib
-    - name: proc
-      hostPath:
-        path: /proc
-    - name: run-systemd
-      hostPath:
-        path: /run/systemd
+        path: /var/lib/kubelet
   restartPolicy: Never
-
 ```
 
 ---
@@ -710,4 +697,73 @@ Run the Python script to generate the kube-bench report:
 
 ```bash
 python3 kubebench-report-generator.py
+```
+
+
+---
+
+## More Improved KUBE-BENCH File
+
+You can **copy and paste it directly** into a file named `kube-bench.yaml`.
+
+```yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-bench
+spec:
+  hostPID: true
+  containers:
+    - name: kube-bench
+      image: aquasec/kube-bench:latest
+      args: ["--benchmark", "cis-1.23", "--json"]
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: etc
+          mountPath: /etc
+          readOnly: true
+        - name: var-lib
+          mountPath: /var/lib
+          readOnly: true
+        - name: usr-bin
+          mountPath: /usr/bin
+          readOnly: true
+        - name: usr-lib
+          mountPath: /usr/lib
+          readOnly: true
+        - name: lib
+          mountPath: /lib
+          readOnly: true
+        - name: proc
+          mountPath: /proc
+          readOnly: true
+        - name: run-systemd
+          mountPath: /run/systemd
+          readOnly: true
+  volumes:
+    - name: etc
+      hostPath:
+        path: /etc
+    - name: var-lib
+      hostPath:
+        path: /var/lib
+    - name: usr-bin
+      hostPath:
+        path: /usr/bin
+    - name: usr-lib
+      hostPath:
+        path: /usr/lib
+    - name: lib
+      hostPath:
+        path: /lib
+    - name: proc
+      hostPath:
+        path: /proc
+    - name: run-systemd
+      hostPath:
+        path: /run/systemd
+  restartPolicy: Never
+
 ```
